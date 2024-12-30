@@ -1,7 +1,6 @@
-# Weixun-Stephanie-Xie
-Factors related to the accident
+# Factors related to the accident
 
-Traffic Accident Analysis Project (2019–2021)
+Traffic Accident Analysis (2019–2021)
 
 
 ## Introduction
