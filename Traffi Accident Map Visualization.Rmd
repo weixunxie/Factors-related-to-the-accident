@@ -1,0 +1,202 @@
+---
+title: "Traffi Accident Map Visualization"
+author: "Weixun Xie"
+date: "2024-12-03"
+output:
+  html_document: default
+  pdf_document: default
+---
+## Question 1
+```{r}
+# Q1
+# Load necessary libraries
+library(sf)        # For spatial data manipulation
+library(spData)    # For the us_states dataset
+library(ggplot2)   # For visualization
+
+# Load the 'us_states' dataset
+data(us_states)    # Load dataset from spData package
+head(us_states)   # Explore the dataset structure
+
+# ---- Data Preprocessing ----
+# Validate geometries
+us_states <- st_make_valid(us_states)
+
+# Check for missing or invalid data
+summary(us_states)
+
+# Handle missing geometries (if any exist)
+us_states <- us_states[!st_is_empty(us_states$geometry), ]
+
+# ---- Visualization ----
+# 1. Basic Map of US States
+ggplot(data = us_states) +
+  geom_sf(fill = "lightblue", color = "black") +
+  ggtitle("Map of US States") +
+  theme_minimal()
+
+# 2. Visualize States with Population Data (if available)
+if ("total_pop_15" %in% colnames(us_states)) {
+  ggplot(data = us_states) +
+    geom_sf(aes(fill = total_pop_15), color = "black") +
+    scale_fill_viridis_c(option = "viridis", name = "Population (2015)") +
+    ggtitle("US States by Population (2015)") +
+    theme_minimal()
+} else {
+  print("Population data not available in the dataset.")
+}
+
+# 3. Highlight a Specific Region (e.g., Midwest)
+midwest_states <- c("Illinois", "Indiana", "Iowa", "Kansas", "Michigan", 
+                    "Minnesota", "Missouri", "Nebraska", "North Dakota", "Ohio", 
+                    "South Dakota", "Wisconsin")
+highlight_midwest <- us_states[us_states$NAME %in% midwest_states, ]
+
+ggplot() +
+  geom_sf(data = us_states, fill = "gray80", color = "white") +
+  geom_sf(data = highlight_midwest, fill = "lightgreen", color = "black") +
+  ggtitle("Midwest Region of the US") +
+  theme_minimal()
+
+
+```
+
+## Question 2
+```{r}
+# Q2
+setwd("~/Desktop/MATH 4710")
+# Load required libraries
+library(sf)        # For spatial data manipulation
+library(dplyr)     # For data manipulation
+library(ggplot2)   # For visualization
+library(spData)    # For us_states dataset
+
+# Load the 'us_states' shapefile
+data(us_states)
+
+# Load accident data
+accident_data <- read.csv("accident.csv", stringsAsFactors = FALSE)
+
+# Filter for specific years: 2019, 2020, 2021
+filtered_data <- accident_data %>%
+  filter(YEAR %in% c(2019, 2020, 2021))
+
+# Aggregate data: Calculate average persons involved per state and year
+state_year_summary <- filtered_data %>%
+  group_by(STATENAME, YEAR) %>%
+  summarise(avg_persons_involved = mean(PERSONS, na.rm = TRUE)) %>%
+  ungroup()
+
+# Merge shapefile with aggregated data
+merged_data <- us_states %>%
+  left_join(state_year_summary, by = c("NAME" = "STATENAME"))
+
+# Ensure the `YEAR` column is part of the merged dataset
+merged_data <- merged_data %>%
+  filter(!is.na(YEAR)) # Remove rows with no `YEAR`
+
+# Visualize the merged data
+ggplot(data = merged_data) +
+  geom_sf(aes(fill = avg_persons_involved), color = "black") +
+  scale_fill_viridis_c(option = "plasma", na.value = "grey80", name = "Avg Persons") +
+  labs(title = "Average Persons Involved in Accidents by US State") +
+  theme_minimal()
+
+
+```
+
+## Question 3
+```{r}
+# Q3
+# Load necessary libraries
+library(sf)
+library(dplyr)
+library(ggplot2)
+library(ggiraph) # For interactive tooltips
+library(cowplot) # For creating inset maps
+
+# Prepare tooltip text
+merged_data$tooltip <- paste0(
+  "State: ", merged_data$NAME, "<br>",
+  "Avg Persons: ", round(merged_data$avg_persons_involved, 2)
+)
+
+# Main map visualization
+main_map <- ggplot(data = merged_data) +
+  geom_sf_interactive(
+    aes(fill = avg_persons_involved, tooltip = tooltip),
+    color = "black", size = 0.4
+  ) +
+  scale_fill_viridis_c(
+    option = "plasma",
+    na.value = "grey80",
+    name = "Avg Persons",
+    breaks = seq(2.0, 2.4, 0.1),
+    labels = scales::comma
+  ) +
+  labs(
+    title = "Average Persons Involved in Accidents by US State",
+    subtitle = "Data from 'accident.csv'",
+    caption = "Source: Accident Data (2024)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5, size = 12),
+    plot.caption = element_text(size = 10, hjust = 0),
+    legend.position = "right",
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10)
+  )
+
+# Inset map: Midwest region
+midwest_states <- c("Illinois", "Indiana", "Iowa", "Kansas", "Michigan", 
+                    "Minnesota", "Missouri", "Nebraska", "North Dakota", "Ohio", 
+                    "South Dakota", "Wisconsin")
+highlight_midwest <- merged_data %>%
+  filter(NAME %in% midwest_states)
+
+inset_map <- ggplot() +
+  geom_sf(data = merged_data, fill = "gray80", color = "white") +
+  geom_sf(data = highlight_midwest, aes(fill = avg_persons_involved), color = "black") +
+  scale_fill_viridis_c(option = "plasma", na.value = "grey80", guide = "none") +
+  labs(title = "Midwest Region") +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(hjust = 0.5, size = 12))
+
+# Combine main map and inset map using cowplot
+combined_map <- ggdraw() +
+  draw_plot(main_map, 0, 0, 1, 1) +
+  draw_plot(inset_map, 0.7, 0.1, 0.25, 0.25) # Adjust inset position and size
+
+# Render the final interactive map
+girafe(ggobj = combined_map)
+```
+
+## Question 4
+```{r}
+# Q4
+# ---- Faceted Visualization ----
+# Create faceted maps
+ggplot(data = merged_data) +
+  geom_sf(aes(fill = avg_persons_involved), color = "black", size = 0.3) +
+  scale_fill_viridis_c(option = "plasma", na.value = "grey80", name = "Avg Persons") +
+  labs(
+    title = "Changes in Average Persons Involved in Accidents (2019-2021)",
+    subtitle = "Faceted by Year",
+    caption = "Source: Accident Data "
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5, size = 14),
+    plot.caption = element_text(size = 10, hjust = 0),
+    legend.position = "right",
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10)
+  ) +
+  facet_wrap(~YEAR, ncol = 3) # Create facets by YEAR
+
+```
+
+
