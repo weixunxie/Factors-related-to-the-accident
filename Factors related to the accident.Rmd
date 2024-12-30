@@ -1,0 +1,814 @@
+---
+title: "Factors related to the accident "
+author: "Weixun Xie "
+date: "20/12/2023 "
+output: 
+  html_document:
+    toc: true
+    toc_depth: 6
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+# Introduction
+
+Every year, the National Highway Traffic Safety Administration publishes
+the FARS, a census of all vehicle collision deaths on public roads. The
+basis for the FARS data is a partnership between the states and the
+National Highway Traffic Safety Administration to collect data on all
+qualifying fatalities. Death certificates are the source of race and
+ethnicity information. (Matthew & Ernani, 2022). For a collision to be
+covered by FARS, it must include a motor vehicle operating on a road
+that is normally accessible to the general public and must cause the
+death of one or more individuals---either non-motorists or occupants of
+the vehicle---within 30 days of the collision. In order to help identify
+traffic safety issues, provide an objective foundation for assessing the
+efficacy of motor vehicle safety regulations and highway safety
+initiatives, and provide an overall measure of highway safety, the U.S.
+Department of Transportation's National Highway Traffic Safety
+Administration (DOT, NHTSA) developed the Framework for Assessment of
+Road Safety (FARS) in 1975 (DOT/NHTSA, n.d.).
+
+This PROJECT analyzes data on traffic accidents in 2019, 2020, and 2021
+to derive the relationship between traffic accidents and gender, age,
+address, time period and harm types.
+
+This project includes the following:
+
+1.  Data collection: Collect comprehensive data on traffic accidents for
+    2019, 2020 and 2021. This data should include details of the
+    individuals involved (gender, age), location accident status
+    (address), and time of occurrence.
+
+<!-- -->
+
+2.  Data cleaning and preparation: standardize and clean the data to
+    ensure consistency. This may involve dealing with missing values,
+    correcting data entry errors, and formatting data for analysis.
+
+3.  Exploratory data analysis (EDA): Descriptive analysis: generating
+    statistics to understand the basic characteristics of the data, such
+    as the total number of accidents per year, the distribution of
+    accidents by gender and age, and the geographic distribution of
+    accidents. Temporal analysis: examines trends over time, e.g.,
+    changes in accident frequency over a three-year period or over a
+    specific time period, e.g., daily peaks, daytime versus nighttime.
+
+4.  Correlation analysis:
+
+    Gender analysis: investigates how gender affects the likelihood or
+    severity of traffic crashes.
+
+    Age analysis: to determine whether certain age groups are more
+    likely to be involved in traffic accidents.
+
+    Geospatial analysis: analyzes whether certain addresses or areas
+    (this PROJECT focuses specifically on New Jersey and compares it to
+    the U.S. as a whole) have higher accident rates, potentially
+    identifying high-risk areas.
+
+    Temporal analysis: exploring the relationship between different
+    times of the day (hours of the day, months of the year (this project
+    differentiates the year with 4 quarters)) and accident rates.
+
+    Type analysis: Analysis of the frequency of the types of accidents,
+    the difference between the types with higher frequency of accidents
+    in the three years.
+
+5.  Insights and recommendations: Derive insights from the analysis. For
+    example, determine if certain demographics are at greater risk or if
+    certain times or locations are associated with higher crash rates.
+    Based on these findings, develop recommendations for traffic safety
+    improvements or targeted campaigns.
+
+6.  Reporting and Visualization: Detailed descriptions of the findings
+    are accompanied by visualizations such as charts, heat maps, and
+    graphs to make the data easy to understand.
+
+```{r , echo=FALSE, fig.cap="Boxplot Diagram", out.width = '75%',fig.align = 'center'}
+knitr::include_graphics("Accident1.png")
+```
+
+This is a picture of New Year's Day car crash in NYC leaves couple
+dead,their car rammed by a pickup truck whose driver then bolted on
+foot.
+
+# Load data
+
+## Import packages
+
+```{r, message=FALSE, warning=FALSE}
+library(dplyr) # this package is used for data manipulation
+library(knitr)  # for table formatting
+library(kableExtra) # more advanced formatting options in tables
+library(tidyr) # providing a set of functions for transforming the layout of data sets
+library(ggplot2) # for data visualization
+library(tidyverse) # providing consistent data structures
+library(patchwork) # combine multiple ggplot objects
+```
+
+## Reading and cleaning the data, prepare data to analysis
+
+### Clean and select accident data
+
+```{r}
+# read files accident form 2021, 2020 and 2019 and combine them in one file call that accident_all
+accident_2019 <- read.csv("accident_2019.csv")
+accident_2020 <- read.csv("accident_2020.csv")
+accident_2021 <- read.csv("accident_2021.csv")
+
+accident_2019[] <- lapply(accident_2019, as.character)
+accident_2020[] <- lapply(accident_2020, as.character)
+accident_2021[] <- lapply(accident_2021, as.character)
+
+accident_2019$YEAR <- 2019
+accident_2020$YEAR <- 2020
+accident_2021$YEAR <- 2021
+
+# merge data
+accident_all <- bind_rows(accident_2019, accident_2020, accident_2021)
+
+# data cleaning: remove missing information from data to reduce interference with data analysis
+accident_all <- accident_all %>% filter(complete.cases(.) & !apply(., 1, function(x) any(x == "")))
+
+# select data: This project focuses on the trend of traffic harm types of accident over 3 years, so HARM_EVNAME and YEAR selected.
+accident_all <- accident_all %>%
+  select(HARM_EVNAME,YEAR)
+
+head(accident_all)
+
+```
+
+### Clean and select person data
+
+```{r}
+# read files accident form 2021, 2020 and 2019 and combine them in one file call that accident_all
+person_2019 <- read.csv("person_2019.csv")
+person_2020 <- read.csv("person_2020.csv")
+person_2021 <- read.csv("person_2021.csv")
+
+person_2019[] <- lapply(person_2019, as.character)
+person_2020[] <- lapply(person_2020, as.character)
+person_2021[] <- lapply(person_2021, as.character)
+
+person_2019$YEAR <- 2019
+person_2020$YEAR <- 2020
+person_2021$YEAR <- 2021
+
+# merge data
+person_all <- bind_rows(person_2019, person_2020, person_2021)
+
+# data cleaning: remove missing information from data to reduce interference with data analysis
+person_all <- person_all %>% 
+              # Remove rows with any empty strings in key columns
+              filter(!apply(select(., AGE, SEXNAME, STATENAME, YEAR, MONTH,HOUR, DEATH_YR), 1, function(x) any(x == ""))) %>%
+              # Convert AGE to numeric 
+              mutate(AGE = as.numeric(AGE)) %>%
+              # Remove rows where AGE data is wrong which is greater than 900
+              filter(AGE <= 900)
+
+
+# select data: This project focuses on the relationship between traffic accidents and gender, age, address, and time of accident, so AGE,SEXNAME,STATENAME,YEAR,MONTH,DEATH_YR were selected.
+person_all <- person_all %>%
+  select(AGE,SEXNAME,STATENAME,YEAR,MONTH,HOUR,DEATH_YR)
+
+head(person_all)
+```
+
+# The relationship between gender and traffic accidents
+
+## Compare the proportion of men and women involved in accidents
+
+```{r}
+# Grouping by Gender and count how many men and women 
+table(person_all$SEXNAME)
+person_all<-person_all|> 
+  mutate(gender= case_when(
+SEXNAME=="Female"~"Female",
+SEXNAME=="Male"~"Male",
+TRUE~"Unknown"))
+total_gender <- person_all %>%
+  group_by(SEXNAME) %>%
+  summarise(Total = n()) %>%
+  ungroup()
+
+gender_with_percentages <- person_all %>%
+                          group_by(gender) %>%
+                          summarise(Count = n()) %>%
+                          mutate(Percentage = (Count / sum(Count)) * 100)
+
+# Tidy up the table
+gender_with_percentages <- gender_with_percentages %>%
+                          mutate(Percentage = round(Percentage, 2))
+
+# print the result
+kable(gender_with_percentages)
+
+
+```
+
+1.  There are a total of 84,526 cases involving females, which accounts
+    for 32.64% of the dataset.
+
+2.  There are a total of 173,978 cases involving males, which accounts
+    for 67.18% of the dataset.
+
+    From this data, we can see that a significantly larger portion of
+    the dataset consists of males. Males are more frequently involved in
+    accidents than females.
+
+## Compare the percentage of Survived between male and female
+
+```{r}
+# Count the number and proportion of Survived for each gender
+person_all<-person_all|> mutate(Death= 
+                case_when(
+DEATH_YR%in%c(2019,2020,2021,2022)~"Died",
+DEATH_YR==8888~"Survived", TRUE~"Unknown"))
+
+# Reshaping the data
+survived_gender_wide <- person_all %>%
+  filter(Death == "Survived", SEXNAME %in% c("Female", "Male")) %>%
+  group_by(YEAR, SEXNAME) %>%
+  summarise(Count = n(), .groups = 'drop') %>%
+  mutate(Percent = round((Count / sum(Count)) * 100, 1)) %>%
+  pivot_wider(names_from = SEXNAME, values_from = c(Count, Percent), 
+              names_sep = "_", values_fill = list(Count = 0, Percent = 0))
+
+# Format the table using kable
+kable(survived_gender_wide, col.names = c("Year", "Survived Male Count", "Survived Female Count", "Survived Male Percent", "Survived Female Percent"))
+
+
+```
+
+Women have a higher survival rate than men.
+
+# Comparing data for the US and NJ (age)
+
+## Compare the average age of people of New Jersey accident data to the US data
+
+```{r}
+# Prepare the New Jersey dataset
+person_nj <- filter(person_all, STATENAME == "New Jersey")
+person_nj$Group <- "New Jersey"
+
+# Prepare the overall dataset with a Group column
+person_all$Group <- "US"
+
+# Combine the data
+combined_data <- rbind(person_all[, c("AGE", "Group")], person_nj[, c("AGE", "Group")])
+
+# Calculate mean ages
+mean_ages <- combined_data %>%
+             group_by(Group) %>%
+             summarise(MeanAge = mean(AGE, na.rm = TRUE))
+
+# Create the boxplot with mean age highlighted
+ggplot(combined_data, aes(x = Group, y = AGE, fill = Group)) +
+  geom_boxplot() +
+  geom_point(data = mean_ages, aes(x = Group, y = MeanAge, group = Group), 
+             color = "red", size = 3, shape = 18) +
+  geom_text(data = mean_ages, aes(x = Group, y = MeanAge, label = round(MeanAge, 1)), 
+            vjust = -1, color = "red") +
+  labs(title = "Boxplot of Ages: US vs. New Jersey", x = "Group", y = "Age") +
+  theme_minimal()
+
+```
+
+1.  The horizontal line within each box represents the median age for
+    both groups: person_nj (New Jersey) and person_all (United States).
+    The relatively similar medians indicate that the average age of
+    individuals involved in accidents in New Jersey and the United
+    States as a whole is almost the same.
+
+2.  The center 50% of the data are included in the interquartile range
+    (IQR), which is shown by the boxes. The equal magnitude of the IQRs
+    for the two groups suggests that the middle 50% of cases in both
+    datasets have a similar age distribution.
+
+3.  There appears to be little variation in the general age distribution
+    based on the "whiskers" of the boxplot, which show the range of the
+    data excluding outliers.
+
+4.  There do not appear to be any outliers indicated, which would show
+    data points that fall significantly outside the typical range.
+
+Overall, the average age of people involved in accidents in New Jersey
+does not differ significantly from the national average.
+
+## Compare the age group with the highest concentration of accidents in New Jersey and the United States
+
+```{r}
+# Function to categorize age into segments
+categorize_age <- function(age) {
+  cut(age,
+      breaks = seq(0, 100, by = 10),
+      include.lowest = TRUE,
+      right = FALSE,
+      labels = paste(seq(0, 90, by = 10), seq(9, 99, by = 10), sep = "-"))
+}
+
+# Categorize age into segments for both datasets
+person_all <- person_all %>%
+  mutate(AGE_GROUP = categorize_age(AGE))
+
+person_nj <- person_nj %>%
+  mutate(AGE_GROUP = categorize_age(AGE))
+
+# Calculate the percentage of each age group for the US
+age_group_percentage_us <- person_all %>%
+  count(AGE_GROUP) %>%
+  mutate(Percentage = n / sum(n) * 100) %>%
+  arrange(desc(Percentage))
+
+# Calculate the percentage of each age group for NJ
+age_group_percentage_nj <- person_nj %>%
+  count(AGE_GROUP) %>%
+  mutate(Percentage = n / sum(n) * 100) %>%
+  arrange(desc(Percentage))
+
+# Find the age group with the highest concentration of accidents for US and NJ
+top_age_group_us <- age_group_percentage_us[1, ]
+top_age_group_nj <- age_group_percentage_nj[1, ]
+
+# Compare the top age groups
+comparison <- rbind(
+  data.frame(Location = "US", top_age_group_us),
+  data.frame(Location = "NJ", top_age_group_nj)
+)
+
+# Print the comparison
+kable(comparison)
+
+```
+
+The age group with the highest concentration of accidents in New Jersey
+and the United States is 20 to 29 years old, and the proportion is
+close.
+
+1.  High-risk age group: The 20-29 age group is usually associated with
+    young people. This group may exhibit a higher level of risk-taking
+    behavior, which may lead to a higher rate of accidents. This is a
+    trend in New Jersey and across the United States.
+
+2.  Consistency across regions: New Jersey has similar rates to the rest
+    of the U.S., which means that the factors contributing to this trend
+    are not unique to New Jersey, but are likely to be prevalent....
+
+3.  Research on influencing factors: Further research into why the 20-29
+    age group is accident prone may be helpful. Factors may include
+    inexperience, overconfidence, higher rates of drunk driving or
+    greater exposure to high-risk driving situations.
+
+# The association of the time period and traffic accident
+
+## Count the 4-hour periods in which traffic accidents occur most frequently
+
+```{r}
+# Function to map hours to the four-hour intervals
+map_to_interval <- function(hour) {
+  # Extract the starting hour from the HOURNAME string
+  start_hour <- as.numeric(str_extract(hour, "^\\d+"))
+  
+  # Define the intervals
+  if (start_hour >= 0 & start_hour < 4) {
+    return("0:00am-3:59am")
+  } else if (start_hour >= 4 & start_hour < 8) {
+    return("4:00am-7:59am")
+  } else if (start_hour >= 8 & start_hour < 12) {
+    return("8:00am-11:59am")
+  } else if (start_hour >= 12 & start_hour < 16) {
+    return("12:00pm-3:59pm")
+  } else if (start_hour >= 16 & start_hour < 20) {
+    return("4:00pm-7:59pm")
+  } else if (start_hour >= 20 & start_hour < 24) {
+    return("8:00pm-11:59pm")
+  } else {
+    return("Unknown")
+  }
+}
+
+# Apply the function to group 'HOURNAME' into four-hour intervals
+person_all <- person_all %>%
+  mutate(Interval = sapply(HOUR, map_to_interval))
+
+# Count the occurrences of each interval and calculate the percentage
+interval_counts <- person_all %>%
+  count(Interval, name = "Count") %>%
+  mutate(Percentage = Count / sum(Count) * 100) %>%
+  arrange(desc(Count))
+
+# Tidy the table
+interval_counts <- interval_counts %>%
+                          mutate(Percentage = round(Percentage, 2))
+
+# View the results
+kable(interval_counts)
+
+# Create a pie chart with percentage labels and interval names
+pie_chart <- ggplot(interval_counts, aes(x = "", y = Percentage, fill = Interval)) +
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar("y", start = 0) +
+  geom_text(aes(label = paste0(Interval, "\n", round(Percentage, 1), "%")), 
+            position = position_stack(vjust = 0.5)) +
+  theme_void() +
+  labs(fill = "Interval", title = "Frequency of accidents during 4-hour periods") +
+  theme(legend.position = "bottom")
+
+
+# Print the pie chart
+print(pie_chart)
+
+```
+
+1.  Peak Hours: The intervals from 4:00 pm to 7:59 pm and from 8:00 pm
+    to 11:59 pm have the highest counts, indicating that these time
+    periods are peak hours for the accidents occured. This could suggest
+    higher activity levels or increased risk during these times.
+
+2.  Day vs. Night: There is a noticeable decrease in counts during the
+    late night to early morning hours (0:00 am to 3:59 am), which may
+    indicate lower activity levels or that fewer accidents are occured
+    during these hours.
+
+3.  Afternoon Activity: The interval from 12:00 pm to 3:59 pm also has a
+    significant count, which could correspond to afternoon activities or
+    occurrences.
+
+4.  Morning Hours: The intervals from 8:00 am to 11:59 am and from 4:00
+    am to 7:59 am have lower counts compared to the afternoon and
+    evening hours. This may reflect a slower start to the day for the
+    events being recorded or may indicate that the risk or activity is
+    lower during these times.
+
+## Frequency of car accidents per quarter
+
+```{r}
+# Create a new variable 'Quarter' by mapping 'MONTH' to quarters
+person_all <- person_all %>%
+  mutate(Quarter = case_when(
+    MONTH %in% 1:3 ~ "Quarter_1",
+    MONTH %in% 4:6 ~ "Quarter_2",
+    MONTH %in% 7:9 ~ "Quarter_3",
+    MONTH %in% 10:12 ~ "Quarter_4",
+    TRUE ~ "Unknown"  # For any data that might not fit the above criteria
+  ))
+
+# Count the occurrences of each quarter and calculate the percentage
+quarter_counts <- person_all %>%
+  count(Quarter, name = "Count") %>%
+  mutate(Percentage = Count / sum(Count) * 100) %>%
+  arrange(desc(Count))
+
+# Tidy the table
+quarter_counts <- quarter_counts %>%
+                          mutate(Percentage = round(Percentage, 2))
+
+# View the results
+kable(quarter_counts)
+
+# Create a pie chart with labels for each section
+ggplot(quarter_counts, aes(x = "", y = Percentage, fill = Quarter)) +
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar("y", start = 0) +
+  geom_text(aes(label = sprintf("%s: %.1f%%", Quarter, Percentage)), 
+            position = position_stack(vjust = 0.3)) +
+  theme_void() +
+  labs(fill = "Quarter", title = "Frequency of accidents during quarters") +
+  theme(legend.position = "bottom")
+
+```
+
+1.  Quarter 3 (Q3) has the highest count: With 72,247 occurrences,
+    making up 27.90% of the total, this suggests that the events being
+    recorded happen most frequently during the months of July, August,
+    and September.
+
+2.  Quarter 4 (Q4) follows closely: With 68,554	occurrences and 26.47%
+    of the total, indicating that October, November, and December are
+    also high-activity months.
+
+3.  Quarter 2 (Q2) is the next: Having 64,027 occurrences with 24.72% of
+    the total, which includes the months of April, May, and June.
+
+4.  Quarter 1 (Q1) has the fewest occurrences: With 54,134	 occurrences
+    accounting for 20.90% of the total, which suggests that January,
+    February, and March are the least active months.
+
+It might indicate seasonal patterns in driving behavior or road
+conditions that could lead to higher incidents in Q3 and Q4.
+
+## Table of frequency of occurrence of the time period in each quarter
+
+```{r}
+# Calculate the total number of accidents for each quarter
+total_accidents_per_quarter <- person_all %>%
+  group_by(Quarter) %>%
+  summarise(Total_Count = n(), .groups = "drop")
+
+# Now, for each quarter, find the 4-hour period with the highest frequency of accidents
+most_frequent_intervals <- person_all %>%
+  group_by(Quarter, Interval) %>%
+  summarise(Count = n(), .groups = "drop") %>%
+  arrange(Quarter, desc(Count))
+
+# Merge the total counts back into the most frequent intervals
+most_frequent_intervals <- most_frequent_intervals %>%
+  left_join(total_accidents_per_quarter, by = "Quarter")
+
+# Calculate the percentage
+most_frequent_intervals <- most_frequent_intervals %>%
+  mutate(Percentage = (Count / Total_Count) * 100)
+
+# Get the top interval for each quarter with the percentage
+top_intervals_by_quarter <- most_frequent_intervals %>%
+  group_by(Quarter) %>%
+  slice_max(n = 1, order_by = Count) %>%
+  ungroup()
+
+# Tidy the table
+top_intervals_by_quarter <- top_intervals_by_quarter %>%
+                          mutate(Percentage = round(Percentage, 2))
+
+# Print the results
+kable(top_intervals_by_quarter)
+
+```
+
+Analysis based on the information of the table:
+
+1.  Quarter 1 (Q1): The 4:00 pm to 7:59 pm interval had the highest
+    frequency of car accidents, with 13,779	accidents, constituting
+    25.45% of the total accidents in Q1.
+
+2.  Quarter 2 (Q2): The interval with the highest number of accidents
+    was from 8:00 pm to 11:59 pm, with 14,496 accidents, which is 22.64%
+    of Q2's total.
+
+3.  Quarter 3 (Q3): This quarter also saw the highest number of
+    accidents in the 8:00 pm to 11:59 pm interval, with 16,799
+    accidents, making up 23.25% of the total for Q3.
+
+4.  Quarter 4 (Q4): The 4:00 pm to 7:59 pm interval was the most
+    accident-prone, with 18,893 accidents, representing 27.56% of Q4's
+    total accidents.
+
+Analysis reveals several patterns and potential insights:
+
+1.  The intervals of 4:00 pm to 7:59 pm and 8:00 pm to 11:59 pm are
+    consistently the most accident-prone across all quarters, suggesting
+    that the later afternoon to late evening may be the riskiest times
+    for car accidents.
+2.  Quarter 4 shows the highest percentage (27.55%) of accidents in the
+    peak interval compared to other quarters, which could be influenced
+    by factors such as early darkness in the winter months, holiday
+    traffic, or other seasonal factors.
+3.  The fact that the 8:00 pm to 11:59 pm interval is the peak in Q2 and
+    Q3 could suggest that summer evening activities contribute to the
+    higher accident rates during these hours.
+4.  Quarter 1 has the lowest percentage of accidents in its peak
+    interval, indicating perhaps more evenly distributed accident
+    occurrences throughout the day or less pronounced peaks compared to
+    other quarters.
+
+# Trends in traffic accidents over three years
+
+## Compare the number of accidents in 2019, 2020, and 2021, observe the trend of total number of accidents over three years.
+
+```{r}
+num_2019 <- nrow(accident_2019)
+num_2020 <- nrow(accident_2020)
+num_2021 <- nrow(accident_2021)
+
+# Creating a data frame with the correct name
+accident_num <- data.frame(
+  Year = c("2019", "2020", "2021"),
+  Number_of_accident = c(num_2019, num_2020, num_2021)
+)
+
+# Create a table 
+kable(accident_num, caption = "Number of Rows in Accident Data (2019-2021)", format = "html")
+
+# Create the combined bar and line chart using ggplot2
+ggplot(accident_num, aes(x = Year, y = Number_of_accident, group = 1)) +
+  geom_bar(stat = "identity", fill = "lightblue") +  # Bar chart
+  geom_line(color = "red", linewidth = 1) +  # Line chart with updated linewidth
+  geom_point(color = "red", size = 2) +  # Points for line chart
+  geom_text(aes(label = Number_of_accident), vjust = -0.5) +  # Annotate with number of accidents
+  labs(title = "Number of Accidents (2019-2021)", 
+       x = "Year", 
+       y = "Number of Accidents") +
+  theme_minimal()
+
+
+```
+
+1.  The number of accidents (or records) appears to increase each year.
+2.  There is a clear upward trend in the data, with the number of
+    accidents in 2021 being the highest, followed by 2020, and then 2019
+    having the least.
+
+This trend could indicate various things: An actual increase in the
+number of accidents year over year. Improved reporting or data
+collection methods over the years, leading to more incidents being
+recorded.
+
+## The trend of 5 types with the highest frequency of traffic accidents
+
+```{r}
+# Modified function to get top 5 types and group others
+count_harm_evname <- function(data) {
+  total <- nrow(data)
+  top_types <- data %>%
+    count(HARM_EVNAME) %>%
+    mutate(Percentage = n / total * 100) %>%
+    arrange(desc(n)) %>%
+    head(5)
+
+  others <- data %>%
+    count(HARM_EVNAME) %>%
+    filter(!(HARM_EVNAME %in% top_types$HARM_EVNAME)) %>%
+    summarise(HARM_EVNAME = "Other", n = sum(n), Percentage = sum(n) / total * 100)
+
+  bind_rows(top_types, others)
+}
+
+
+# Apply function to each dataset
+counts_2019 <- count_harm_evname(accident_2019)
+counts_2020 <- count_harm_evname(accident_2020)
+counts_2021 <- count_harm_evname(accident_2021)
+
+# Add a Year column to each dataset for identification
+counts_2019$Year <- 2019
+counts_2020$Year <- 2020
+counts_2021$Year <- 2021
+
+# Combine the counts into one data frame for comparison
+combined_counts <- rbind(counts_2019, counts_2020, counts_2021)
+
+# Create the kable and use 'collapse_rows' from kableExtra to merge the 'Year' column
+kable_styling(combined_counts %>%
+  kable("html", caption = "Top Accident Types Across 2019, 2020, 2021") %>%
+  collapse_rows(columns = 1, valign = "middle"), full_width = F)
+
+
+# Modified function to create a pie chart with percentage labels
+create_pie_chart <- function(data, year) {
+  ggplot(data, aes(x = "", y = Percentage, fill = HARM_EVNAME)) +
+    geom_bar(width = 1, stat = "identity") +
+    coord_polar("y", start = 0) +
+    geom_text(aes(label = paste0(round(Percentage, 1), "%")), 
+              position = position_stack(vjust = 0.5)) +
+    theme_void() +
+    labs(title = paste("Top Accident Types in", year),
+         fill = "Accident Type") +
+    scale_fill_brewer(palette = "Set3")
+}
+
+# Create pie charts
+pie_chart_2019 <- create_pie_chart(counts_2019, 2019)
+pie_chart_2020 <- create_pie_chart(counts_2020, 2020)
+pie_chart_2021 <- create_pie_chart(counts_2021, 2021)
+
+# Combine the pie charts into one plot
+combined_pie_charts <- (pie_chart_2019 | pie_chart_2020 | pie_chart_2021) +
+  plot_layout(guides = 'collect') & 
+  theme(legend.position = 'bottom') # Collect guides and place them at the bottom
+
+# Print the combined plot
+print(combined_pie_charts)
+
+```
+
+The top 5 types of accidents in the three years were all "Motor Vehicle
+in-transport","Pedestrian", "Rollover/Overturn", "Tree (Standing Only)",
+"Curb". These five types of accidents account for a similar proportion
+of accidents each year.
+
+1.  There may be a pattern or consistency in the causes of accidents, as
+    evidenced by the fact that the top 5 categories of accidents did not
+    change over a period of three years. This suggests that the causes
+    of these mishaps are ongoing and are not greatly impacted by yearly
+    fluctuations.
+
+2.  Priority Areas for Safety Interventions: Setting priorities for
+    safety measures and interventions can be aided by understanding the
+    most typical accident types. For instance, if there is a persistent
+    high rate of "Pedestrian" and "Motor Vehicle in-transport"
+    accidents, it suggests that pedestrian-friendly infrastructure,
+    awareness programs, and enhanced road safety measures are required.
+
+3.  The terms 'Rollover/Overturn' and 'Tree (Standing Only)' imply that
+    environmental variables, such as road conditions near trees, and
+    vehicle stability are major causes of accidents. This may suggest
+    that road upkeep and car safety regulations need to be improved.
+
+4.  The frequency of "Curb"-related accidents suggests that there may be
+    problems with urban planning or road design. It might be helpful to
+    look into if the layout of the curbs and walkways, insufficient
+    signage, or poor visibility are to blame for these incidents.
+
+5.  The fact that the percentage of these incidents is consistent year
+    after year indicates that the hazards are still present and that
+    neither the effectiveness of safety measures put in place over the
+    years nor the conduct of drivers or pedestrians has significantly
+    changed.
+
+6.  To comprehend the underlying causes of these mishaps, further
+    focused study may be conducted using the information provided here.
+    It can also help politicians create more targeted plans to lower
+    these particular kinds of mishaps.
+
+7.  Educating the public about the most prevalent types of accidents
+    might encourage drivers and pedestrians to drive more cautiously. To
+    lessen their incidence, educational initiatives may concentrate on
+    these particular situations.
+
+8.  Given the typical accident types, it may be possible to create
+    technology solutions specialized to these situations, such as
+    advanced driver assistance systems (ADAS), which target these
+    accident kinds.
+
+## Compare the trend of the 5 most frequent types of 3 years use combined data from last part
+
+```{r}
+# Creating a combined bar and line chart
+combined_chart <- ggplot(combined_counts, aes(x = Year, y = n, group = HARM_EVNAME)) +
+  geom_bar(aes(fill = HARM_EVNAME), stat = "identity", position = position_dodge(width = 0.8), width = 0.7) +
+  geom_line(aes(color = HARM_EVNAME), position = position_dodge(width = 0.8)) +
+  geom_point(aes(color = HARM_EVNAME), position = position_dodge(width = 0.8)) +
+  scale_fill_brewer(palette = "Set1") +
+  scale_color_brewer(palette = "Set1") +
+  labs(title = "Trend of Top 5 Accident Types Over Three Years",
+       x = "Year",
+       y = "Number of Accidents",
+       fill = "Accident Type",
+       color = "Accident Type")
+
+print(combined_chart)
+```
+
+1.  There's an initial increase from 2019 to 2020.
+2.  The count of "Motor Vehicle in-transport" for 2021 shows a
+    significant rise from 2020, indicating a sharp increase in the
+    number of "Motor Vehicle In-Transport" accidents reported or
+    recorded.
+
+This trend of "Motor Vehicle in-transport" could imply several
+things: 1. An actual increase in the number of such accidents year over
+year. 2. Changes in data collection or reporting practices, leading to
+more incidents being captured in the data. 3. An increase in the number
+of vehicles on the road or changes in transportation patterns.
+
+The trend could be concerning, signaling a growing issue that may
+require attention from policy-makers or transportation authorities.
+
+# Conclusion
+
+1.  Gender differences in accidents: Males accounted for a larger
+    proportion of accidents at 65.84%, followed by females at 32.01% and
+    unknown gender at 2.15%, with females having a higher survival rate
+    in accidents.
+
+2.  New Jersey and the U.S. have the highest concentration of accidents
+    in the 20-29 age group, and the average age of those involved in
+    accidents is similar. Suggesting that New Jersey has similar rates
+    to the rest of the U.S. means that contributing to this trend is
+    likely to be widespread.
+
+3.  Peak Accident Hours:Peak accident hours are 4:00 p.m. to 7:59 p.m.
+    and 8:00 p.m. to 11:59 p.m., which indicate higher activity levels
+    or higher risk. Counts were reduced during the day compared to the
+    night, while activity between 12:00 PM and 3:59 PM was significant.
+    Lower counts in the morning may reflect slower starts or lower risk.
+
+4.  Seasonal variation in traffic accidents: The data show seasonal
+    trends, with the highest frequency of traffic accidents occurring in
+    the third quarter (July-September) and the fourth quarter
+    (October-December). This can be attributed to increased summer and
+    holiday travel, as well as poor weather conditions affecting driving
+    safety in the fourth quarter. Enhanced traffic safety measures and
+    controls are needed. Initiatives may include increased enforcement
+    efforts and public safety activities designed to anticipate and
+    mitigate increased risk.
+
+5.  Annual accident trend: Persistent high rates of certain types of
+    crashes over the years indicate underlying systemic problems.
+    Assessing crash frequency and type can assist the transportation
+    sector in developing and implementing strategic interventions to
+    minimize crashes. For example, addressing the issue of
+    "rollover/flip". Accidents may require a review of vehicle safety
+    standards and road design.
+
+6.  Informed decision-making through data visualization Clear
+    visualization of accident data helps decision-makers to quickly
+    identify and prioritize safety issues, underscoring the importance
+    of reliable data collection and representation in policy
+    development. Gaining insight into the timing and nature of crashes
+    and understanding crash trends can help to take proactive measures
+    to anticipate potential future crash hotspots and periods of
+    elevated risk, and predictive analytics can help to better allocate
+    resources and emergency response plans, which can ensure
+    preparedness during periods of high risk.
